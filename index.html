@@ -14,7 +14,8 @@ let state=JSON.parse(localStorage.getItem('natStateV2')||'{"seen":{},"ok":{},"ba
 let current=null, quiz=[], qi=0, score=0, mode='quiz';
 function save(){localStorage.setItem('natStateV2',JSON.stringify(state));updateFooter();}
 function cats(){return ['Toutes',...new Set(QUESTIONS.map(q=>q.cat))];}
-function show(id,el){document.querySelectorAll('main section').forEach(s=>s.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); if(el){el.classList.add('active')}else{let labels={home:'Accueil',flash:'Flashcards',quiz:'Quiz',exam:'Examen blanc',errors:'Erreurs',stats:'Progression'};[...document.querySelectorAll('.tab')].find(t=>t.textContent.trim()===labels[id])?.classList.add('active')} if(id==='flash')nextFlash(); if(id==='quiz'&&!quizBox.innerHTML.trim())startQuiz(10); if(id==='exam'&&!examBox.innerHTML.trim())startExam(); if(id==='errors')renderErrors(); if(id==='stats')renderStats();}
+function showPanel(id,el){document.querySelectorAll('main section').forEach(s=>s.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); if(el){el.classList.add('active')}else{let labels={home:'Accueil',flash:'Flashcards',quiz:'Quiz',exam:'Examen blanc',errors:'Erreurs',stats:'Progression'};[...document.querySelectorAll('.tab')].find(t=>t.textContent.trim()===labels[id])?.classList.add('active')}}
+function show(id,el){showPanel(id,el); if(id==='flash')nextFlash(); if(id==='quiz'&&!document.getElementById('quizBox').innerHTML.trim())document.getElementById('quizBox').innerHTML='<h3>Quiz</h3><p>Prête pour une session courte ?</p><button class="btn primary" onclick="startQuiz(10)">Démarrer 10 questions</button>'; if(id==='exam'&&!document.getElementById('examBox').innerHTML.trim())document.getElementById('examBox').innerHTML='<h3>Examen blanc</h3><p>16 questions, objectif : au moins 10 bonnes réponses.</p><button class="btn primary" onclick="startExam()">Démarrer l’examen blanc</button>'; if(id==='errors')renderErrors(); if(id==='stats')renderStats();}
 function pick(list,n){return [...list].sort(()=>Math.random()-.5).slice(0,n)}
 function init(){let fs=document.getElementById('flashCat');fs.innerHTML=cats().map(c=>`<option>${c}</option>`).join('');let counts={};QUESTIONS.forEach(q=>counts[q.cat]=(counts[q.cat]||0)+1);catCards.innerHTML=Object.entries(counts).map(([c,n])=>`<div class="card"><div class="stat">${n}</div><b>${c}</b><p>${pctCat(c)}% de réussite</p></div>`).join('');updateFooter();}
 function pctCat(c){let arr=QUESTIONS.filter(q=>q.cat===c), ok=arr.reduce((s,q)=>s+(state.ok[q.id]||0),0), bad=arr.reduce((s,q)=>s+(state.bad[q.id]||0),0);return ok+bad?Math.round(ok/(ok+bad)*100):0}
@@ -23,10 +24,32 @@ function reveal(){fa.classList.add('show')}
 function toggleFav(id){state.fav[id]=!state.fav[id];save();}
 function mark(ok){if(!current)return;state.seen[current.id]=(state.seen[current.id]||0)+1;if(ok)state.ok[current.id]=(state.ok[current.id]||0)+1;else state.bad[current.id]=(state.bad[current.id]||0)+1;save();}
 function options(q){if(q.choices&&q.choices.length)return pick(q.choices,4);let wrong=pick(QUESTIONS.filter(x=>x.id!==q.id).map(x=>x.a),3);return pick([q.a,...wrong],4)}
-function startQuiz(n=10,list=null){mode='quiz';quiz=pick(list||QUESTIONS,n);qi=0;score=0;show('quiz');renderQuestion(quizBox)}
-function startExam(){mode='exam';let themes=['Géographie','Histoire','Politique','Social'];quiz=[];themes.forEach(t=>quiz.push(...pick(QUESTIONS.filter(q=>q.sub.includes(t)||q.cat==='Neuchâtel'&&Math.random()<.25),4))); if(quiz.length<16)quiz.push(...pick(QUESTIONS.filter(q=>!quiz.includes(q)),16-quiz.length));quiz=quiz.slice(0,16);qi=0;score=0;show('exam');renderQuestion(examBox)}
-function renderQuestion(box){if(qi>=quiz.length){let pass=mode==='exam'?score>=10:true;state.sessions.push({date:new Date().toLocaleDateString('fr-CH'),score,total:quiz.length,mode});save();box.innerHTML=`<h2>${mode==='exam'?(pass?'Réussi 🎉':'À consolider 💪'):'Session terminée'}</h2><div class="stat">${score} / ${quiz.length}</div><p>${mode==='exam'&&pass?'Prête pour la naturalisation… et sans oublier Madagascar 🇲🇬🇨🇭':'On garde le cap. Les erreurs reviennent dans le mode révision.'}</p><button class="btn primary" onclick="${mode==='exam'?'startExam()':'startQuiz(10)'}">Recommencer</button>`;return}let q=quiz[qi];current=q;let opts=options(q);box.innerHTML=`<span class="pill">${q.cat} · ${q.sub}</span><div class="qtext">${qi+1}/${quiz.length} — ${q.q}</div><div id="opts">${opts.map(o=>`<button class="btn" onclick="answer(this, '${encodeURIComponent(o)}')">${o}</button>`).join('')}</div><div class="answer" id="explain"><b>Réponse :</b> ${q.a}</div>`;}
-function answer(btn,enc){let val=decodeURIComponent(enc),ok=val===current.a;[...document.querySelectorAll('#opts .btn')].forEach(b=>{b.disabled=true;if(b.textContent===current.a)b.classList.add('correct')}); if(!ok)btn.classList.add('wrong'); if(ok)score++; mark(ok);explain.classList.add('show');setTimeout(()=>{qi++;renderQuestion(mode==='exam'?examBox:quizBox)},900)}
+function startQuiz(n=10,list=null){mode='quiz';quiz=pick(list||QUESTIONS,n);qi=0;score=0;showPanel('quiz');renderQuestion(document.getElementById('quizBox'))}
+function startExam(){mode='exam';let themes=['Géographie','Histoire','Politique','Social'];quiz=[];themes.forEach(t=>quiz.push(...pick(QUESTIONS.filter(q=>q.sub.includes(t)||q.cat==='Neuchâtel'&&Math.random()<.25),4))); if(quiz.length<16)quiz.push(...pick(QUESTIONS.filter(q=>!quiz.includes(q)),16-quiz.length));quiz=quiz.slice(0,16);qi=0;score=0;showPanel('exam');renderQuestion(document.getElementById('examBox'))}
+function escapeHtml(str){return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function renderQuestion(box){
+  if(qi>=quiz.length){
+    let pass=mode==='exam'?score>=10:true;
+    state.sessions.push({date:new Date().toLocaleDateString('fr-CH'),score,total:quiz.length,mode});save();
+    box.innerHTML=`<h2>${mode==='exam'?(pass?'Réussi 🎉':'À consolider 💪'):'Session terminée'}</h2><div class="stat">${score} / ${quiz.length}</div><p>${mode==='exam'&&pass?'Prête pour la naturalisation… et sans oublier Madagascar 🇲🇬🇨🇭':'On garde le cap. Les erreurs reviennent dans le mode révision.'}</p><button class="btn primary" id="restartBtn">Recommencer</button>`;
+    document.getElementById('restartBtn').onclick = () => mode==='exam'?startExam():startQuiz(10);
+    return;
+  }
+  let q=quiz[qi];current=q;let opts=options(q);
+  box.innerHTML=`<span class="pill">${escapeHtml(q.cat)} · ${escapeHtml(q.sub)}</span><div class="qtext">${qi+1}/${quiz.length} — ${escapeHtml(q.q)}</div><div id="opts">${opts.map((o,i)=>`<button class="btn" data-idx="${i}">${escapeHtml(o)}</button>`).join('')}</div><div class="answer" id="explain"><b>Réponse :</b> ${escapeHtml(q.a)}</div>`;
+  [...document.querySelectorAll('#opts .btn')].forEach(btn=>{
+    btn.onclick=()=>answer(btn, opts[Number(btn.dataset.idx)]);
+  });
+}
+function answer(btn,val){
+  let ok=val===current.a;
+  [...document.querySelectorAll('#opts .btn')].forEach(b=>{b.disabled=true;if(b.textContent===current.a)b.classList.add('correct')});
+  if(!ok)btn.classList.add('wrong');
+  if(ok)score++;
+  mark(ok);
+  document.getElementById('explain').classList.add('show');
+  setTimeout(()=>{qi++;renderQuestion(mode==='exam'?document.getElementById('examBox'):document.getElementById('quizBox'))},900);
+}
 function weakMode(){let weak=QUESTIONS.filter(q=>(state.bad[q.id]||0)>0).sort((a,b)=>(state.bad[b.id]||0)-(state.bad[a.id]||0));startQuiz(Math.min(10,weak.length||10),weak.length?weak:QUESTIONS)}
 function renderErrors(){let weak=QUESTIONS.filter(q=>(state.bad[q.id]||0)>0).sort((a,b)=>(state.bad[b.id]||0)-(state.bad[a.id]||0));errBox.innerHTML=weak.length?weak.map(q=>`<div class="card"><span class="pill">${q.cat} · ${q.sub}</span><h3>${q.q}</h3><p><b>Réponse :</b> ${q.a}</p><p class="small">Ratée ${state.bad[q.id]}x · Réussie ${state.ok[q.id]||0}x</p></div>`).join(''):'<div class="card"><h3>Aucune erreur enregistrée</h3><p>On adore ce genre de problème.</p></div>';}
 function renderStats(){let total=QUESTIONS.length,seen=Object.keys(state.seen).length,ok=Object.values(state.ok).reduce((a,b)=>a+b,0),bad=Object.values(state.bad).reduce((a,b)=>a+b,0);statsBox.innerHTML=`<div class="card"><div class="stat">${seen}/${total}</div><p>Questions vues</p></div><div class="card"><div class="stat">${ok+bad?Math.round(ok/(ok+bad)*100):0}%</div><p>Réussite globale</p></div><div class="card"><div class="stat">${state.sessions.length}</div><p>Sessions terminées</p></div><div class="card"><div class="stat">${Object.keys(state.fav).filter(k=>state.fav[k]).length}</div><p>Favorites</p></div>`+cats().filter(c=>c!=='Toutes').map(c=>`<div class="card"><b>${c}</b><div class="progress"><div class="bar" style="width:${pctCat(c)}%"></div></div><p>${pctCat(c)}% réussite</p></div>`).join('');}
